@@ -1,0 +1,3 @@
+*.stash
+*__pycache__
+main5.py
