@@ -1,7 +1,10 @@
 from sympy import Matrix
 
-def stuple(s):
-    return tuple(sorted(s))
+def stuple(s, *args, **kw):
+    return tuple(sorted(s, *args, **kw))
+
+def slist(s, *args, **kw):
+    return list(sorted(s, *args, **kw))
 
 def hstack(*L):
     try:

@@ -1,11 +1,10 @@
 from simhom.algebra import BasisElement, ZeroElement
-from simhom.util import stuple, lmap, lfilt, cref, slist
+from simhom.util import stuple, lmap, lfilt, cref
 from collections.abc import Mapping, MutableMapping
 from sympy import Matrix, zeros
-from abc import abstractmethod
 
 def csum(*C):
-    return sum(*C, ZeroChain())
+    return sum(*C, Chain())
 
 
 ''''''''''''''''''
@@ -41,15 +40,7 @@ class Chain(BasisElement):
         BasisElement.__init__(self, map)
         self.id = tuple((s, o*self.id[0][1]) for s,o in self.id)
         self.dim = self.atoms[0].dim if len(self) else dim
-        try:
-            assert all(s.dim == self.dim for s in self)
-        except AssertionError as e:
-            print(self)
-            raise e
-    def _mkchain(self, map, dim=-1):
-        if all(v == 0 for v in map.values()) or not len(map):
-            return ZeroChain(dim=dim)
-        return Chain({s : o for s,o in map.items()}, dim)
+        assert all(s.dim == self.dim for s in self)
     def __eq__(self, h):
         return (BasisElement.__eq__(self, h)
             or BasisElement.__eq__(self, h.inverse()))
@@ -62,13 +53,12 @@ class Chain(BasisElement):
     def __add__(self, c):
         simplices = set(self).union(set(c))
         map = {s : self[s] + c[s] for s in simplices}
-        return self._mkchain(map, self.dim)
+        if all(v == 0 for v in map.values()):
+            return ZeroChain(dim=self.dim)
+        return Chain(map, self.dim)
     def __mul__(self, a):
-        map = {s : o * a for s,o in self.items()}
-        return self._mkchain(map, self.dim)
+        return Chain({s : o * a for s,o in self.items()}, self.dim)
     def inverse(self):
-        return self * -1
-    def __invert__(self):
         return self * -1
     def boundary(self):
         return csum(s.boundary() * o for s, o in self.items())
@@ -95,51 +85,26 @@ class ZeroChain(ZeroElement, Chain):
 
 
 class ComplexElement:
-    # def __init__(self, left, right):
-    #     self._left, self._right = left, right
-    #     self._from = morphism_t(left, self)
-    #     self._to = morphism_t(self, right)
-    # # def __next__(self):
-    # #     return self._right
-    # @abstractmethod
-    # def __rshift__(self, sup):
-    #     pass
-    @property
-    @abstractmethod
-    def morphism_t(self):
-        pass
-    @property
-    @abstractmethod
-    def element_t(self):
-        pass
+    pass
 
-# class ComplexMorphism(Function):
-#     def __init__(self, X, Y):
-#         Function.__init__(self, X, Y)
-#         self.im = self.Y>>self
-#         assert not len(next(self.im))
-#     def __iter__(self):
-#         for x in self.X:
-#             yield self(x)
-#
-# class SimplicialBoundary(ComplexMorphism):
-#     def __init__(self, X, Y):
-#         assert (isinstance(X, SimplicialSkeleton)
-#             and isinstance(Y, SimplicialSkeleton)
-#             and Y.dim == X.dim - 1)
-#         ComplexMorphism.__init__(self, X, Y)
-#     def __call__(self, x):
-#         return {s for s in x.boundary()}
 
-class SimplicialSkeleton:#(ComplexElement, MutableMapping):
-    # morphism_t = Boundary
-    def __init__(self, dim=-1):#, S=[]):
-        self.dim, self.S, self.imap = dim, [], {}
-        # for s in S:
-        #     self.add(s)
-    # def __rshift__(self, sup):
-    #     S = {s for s in S for S in sup}
-    #     return SimplicialSkeleton(S=slist(S, key=lambda s: self[s]))
+''''''''''''''''''
+''' STRUCTURES '''
+''''''''''''''''''
+
+
+class Complex:
+    pass
+
+
+class SimplicialSkeleton(ComplexElement, MutableMapping):
+    def __init__(self, dim=-1):
+        self.dim, self.imap, self.S = dim, {}, []
+    def add(self, s):
+        assert s.dim == self.dim
+        if not s in self:
+            self.imap[s] = len(self)
+            self.S.append(s)
     def __len__(self):
         return len(self.S)
     def __getitem__(self, s):
@@ -163,14 +128,6 @@ class SimplicialSkeleton:#(ComplexElement, MutableMapping):
             for s, o in c.items():
                 v[self[s]] = o
         return v
-    def add(self, s):
-        if self.dim == -1:
-            self.dim = s.dim
-        elif self.dim != s.dim:
-            raise Exception('dimension of %s does not match' % str(s))
-        if not s in self:
-            self.imap[s] = len(self)
-            self.S.append(s)
     def __contains__(self, c):
         if isinstance(c, Simplex):
             return c in self.imap
@@ -178,22 +135,8 @@ class SimplicialSkeleton:#(ComplexElement, MutableMapping):
     def __repr__(self):
         return str(self.S)
 
-''''''''''''''''''
-''' STRUCTURES '''
-''''''''''''''''''
 
-
-class Complex:
-    # def __init__(self, sequence):
-    #     assert all(next(next(s)).is_zero() for s in sequence) == Zero
-    @property
-    @abstractmethod
-    def element_t(self):
-        pass
-
-
-class SimplicialComplex:#(Complex):
-    # element_t = SimplicialSkeleton
+class SimplicialComplex(Complex):
     def __init__(self, S):
         self.dim = max(len(s) for s in S) - 1
         self.S = {d : SimplicialSkeleton(d) for d in range(self.dim+1)}

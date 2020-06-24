@@ -1,10 +1,10 @@
 # from simhom.simplicial import Chain
 # from simhom.homology import ChainGroup
-from simhom.algebra import FinitelyGeneratedGroup
+from simhom.algebra import FGGroup
 from itertools import combinations
 from collections.abc import Callable
 from abc import abstractmethod
-from simhom.util import lmap
+from simhom.util import lmap, hstack
 
 def is_homomorphism(f):
     return all(f(x+y) == f(x)+f(y) for x,y in combinations(f.X,2))
@@ -25,34 +25,36 @@ def is_isomorphism(f):
 class Function(Callable):
     def __init__(self, X, Y):
         self.X, self.Y = X, Y
-        self.im = self.image(self.X)
-        self.coker = self.Y.subgroup(f=lambda y: not y in self.im)
-    def image(self, x=None):
-        x = self.X if x is None else x
-        if self.X.is_element(x):
-            return self.image({x})
-        return self.Y.subgroup(lmap(self, x))
-    def preimage(self, y=None):
-        y = self.Y if y is None else y
-        if self.Y.is_element(y):
-            return self.preimage({y})
-        return self.X.subgroup(f=lambda x: self(x) in y)
     @abstractmethod
-    def kernel(self):
+    def _image(self):
+        pass
+    @abstractmethod
+    def _kernel(self):
         pass
 
 
 class Homomorphism(Function):
     def __init__(self, X, Y):
         Function.__init__(self, X, Y)
-        assert (isinstance(X, FinitelyGeneratedGroup)
-            and isinstance(Y, FinitelyGeneratedGroup)
+        assert (isinstance(X, FGGroup)
+            and isinstance(Y, FGGroup)
             and is_homomorphism(self))
-    def kernel(self):
+        self.im = self._image()
+        self.ker = self._kernel()
+        self.coker = self._cokernel()
+    def _image(self):
+        im = lmap(self, self.X) + list(self.Y.zero.basis)
+        return self.Y.subgroup(im)
+    def _kernel(self):
         if self.im.to_mat().is_zero:
             return self.X
-        null = self.im.to_mat().nullspace()
-        return self.X.subgroup(lmap(self.X.to_element, null))
+        im = lmap(self, self.X) + list(self.Y.zero.basis)
+        null = hstack(self.Y.to_vec(c) for c in im).nullspace()
+        ker = [self.X.to_element(m[:len(self.X),0]) for m in null]
+        return self.X.subgroup(ker)
+    def _cokernel(self):
+        coker = [y for y in self.Y if not y in self.im]
+        return self.Y.subgroup(coker)
 
 
 # class Map:
