@@ -23,7 +23,7 @@ class GroupElement(Hashable):
     def __eq__(self, h):
         return self.id == h.id
     @abstractmethod
-    def inverse(self):
+    def __invert__(self):
         pass
     @abstractmethod
     def __add__(self, g):
@@ -32,12 +32,13 @@ class GroupElement(Hashable):
 
 class ZeroElement(GroupElement):
     def __init__(self, subgroup=None):
-        self.subgroup = subgroup
-        self.basis = subgroup.basis if subgroup is not None else []
+        self.subgroup, self.basis = subgroup, []
+        if subgroup is not None:
+            self.basis = subgroup.basis + subgroup.zero.basis
         GroupElement.__init__(self, tuple())
     def __add__(self, g):
         return g
-    def inverse(self):
+    def __invert__(self):
         return self
     def __eq__(self, g):
         return (g.is_zero()
@@ -74,7 +75,7 @@ class BasisElement(GroupElement, Mapping):
     def __hash__(self):
         return GroupElement.__hash__(self)
     def __sub__(self, h):
-        return self + h.inverse()
+        return self + ~h
     def as_vec(self, imap):
         v = zeros(len(imap),1)
         for s,o in self.items():
@@ -97,6 +98,9 @@ class Group:
     @abstractmethod
     def __contains__(self, g):
         pass
+    @abstractmethod
+    def is_zero(self):
+        pass
     @property
     @abstractmethod
     def zero_t(self):
@@ -106,12 +110,19 @@ class Group:
     def element_t(self):
         pass
 
+class ZeroGroup(Group):
+    def __init__(self, zero):
+        self.zero = zero
+    def __contains__(self, g):
+        return g == self.zero
+    def __repr__(self):
+        return 'Group(0)'
 
 class Basis:
     def __init__(self, basis):
         self.elems = list({e for b in basis for e in b})
         self.imap = {e : i for i,e in enumerate(self.elems)}
-        self.basis = basis
+        self.basis = [b for b in basis if not b.is_zero()]
     def __contains__(self, g):
         if (not len(self.basis)
             or any(not e in self.imap for e in g)):
@@ -123,25 +134,34 @@ class Basis:
     def reduce(self, S):
         B = cref(hstack(self.to_vec(c) for c in S))
         return {self.to_element(v) for v in B.columnspace()}
+    def __eq__(self, S):
+        return (all(s in self for s in S)
+            and all(s in S for s in self))
     @abstractmethod
     def to_vec(self, g):
         pass
     @abstractmethod
     def to_element(self, v):
         pass
+    def __repr__(self):
+        return '<%s>' % ', '.join(map(str, self))
 
 
-class FGGroup(Group, Basis):
+class FGGroup(Basis, Group):
     def __init__(self, basis, zero):
+        basis = [b for b in basis if not b == zero]
         Group.__init__(self, zero)
         Basis.__init__(self, basis)
+    def is_zero(self):
+        return not len(self.basis)
     def __len__(self):
         return len(self.basis)
     def __iter__(self):
         for g in self.basis:
             yield g
     def __repr__(self):
-        return 'span(%s)' % ', '.join(map(str, self))
+        return 'Group(%s)' % Basis.__repr__(self) if \
+                            not self.is_zero() else '0'
 
 
 class Quotient(FGGroup):
@@ -174,9 +194,6 @@ class FGCoset(Basis, BasisElement):
         BasisElement.__init__(self, self.basis)
     def __contains__(self, g):
         return Basis.__contains__(self, g)
-    def __eq__(self, S):
-        return (all(s in self for s in S)
-            and all(s in S for s in self))
     def __hash__(self):
         return BasisElement.__hash__(self)
     def __add__(self, S):

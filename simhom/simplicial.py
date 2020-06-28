@@ -52,7 +52,7 @@ class Chain(BasisElement):
         return Chain({s : o for s,o in map.items()}, dim)
     def __eq__(self, h):
         return (BasisElement.__eq__(self, h)
-            or BasisElement.__eq__(self, h.inverse()))
+            or BasisElement.__eq__(self, ~h))
     def __hash__(self):
         return BasisElement.__hash__(self)
     def __getitem__(self, s):
@@ -66,8 +66,6 @@ class Chain(BasisElement):
     def __mul__(self, a):
         map = {s : o * a for s,o in self.items()}
         return self._mkchain(map, self.dim)
-    def inverse(self):
-        return self * -1
     def __invert__(self):
         return self * -1
     def boundary(self):

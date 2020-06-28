@@ -1,8 +1,8 @@
 # from simhom.algebra import FGCoset,Quotient, FGZero, FGZeroCoset
 from simhom.simplicial import Chain, ZeroChain #, Complex, ComplexElement
-from simhom.algebra import FGGroup, FGCoset, FGZeroCoset, Quotient, ZeroElement
+from simhom.algebra import FGGroup, FGCoset, FGZeroCoset, Quotient, ZeroElement, ZeroGroup
 from simhom.util import cref, lmap, lfilt, hstack, pad
-from simhom.functions import Homomorphism
+from simhom.functions import Homomorphism, Function
 from sympy import zeros
 
 
@@ -15,8 +15,8 @@ class ChainCoset(FGCoset):
     atom_t = Chain
     def __init__(self, g, H):
         FGCoset.__init__(self, g, H)
-    def inverse(self):
-        return ChainCoset(g.inverse(), self.H)
+    def __invert__(self):
+        return ChainCoset(~g, self.H)
     def to_vec(self, g):
         v = zeros(len(self.elems), 1)
         for s,o in g.items():
@@ -82,56 +82,54 @@ class ChainGroup(FGGroup):#, ComplexElement):
         basis = self.basis if basis is None else basis
         if f is not None:
             basis = lfilt(f, basis)
-        return ChainGroup(self.K, self.dim, basis, self.zero)
+        return ChainGroup(self.K, self.dim, basis, self.zero.subgroup)
     def __truediv__(self, H):
         return ChainQuotient(self, H)
+    def zero_group(self):
+        return ChainGroup(self.K, self.dim, subgroup=self)
+    def as_pair(self, H):
+        return ChainGroup(self.K, self.dim, subgroup=H)
 
 
-class Boundary(Homomorphism):
-    def __init__(self, X, Y):
-        assert (isinstance(X, ChainGroup)
-            and isinstance(Y, ChainGroup)
-            and Y.dim == X.dim - 1)
-        Homomorphism.__init__(self, X, Y)
-    def __call__(self, x):
-        return x.boundary()
-    def __repr__(self):
-        return self.im.to_mat().__repr__()
+# class ZeroChainGroup(ZeroGroup, ChainGroup):
+#     def __init__(self, K, dim, subgroup=None):
+#         zero = ZeroChain(subgroup, dim)
+#         FGGroup.__init__(self, [], zero)
 
 
-class ChainComplex: #(Complex):
-    def __init__(self, K, subcomplex=None):
-        self.K, self.subcomplex, self.dim = K, subcomplex, K.dim
-        self._C = {d : ChainGroup(K, d, subgroup=self._subgroup(d)) for d in range(K.dim+2)}
-        self._D = {d : Boundary(self[d], self[d-1]) for d in range(K.dim+2)}
-    def _mkgroup(self, d):
-        return ChainGroup(self.K, d, subgroup=self._subgroup(d))
-    def _subgroup(self, d):
-        if self.subcomplex is not None:
-            return self.subcomplex[d]
-        return None
-    def __getitem__(self, d):
-        if d in self._C:
-            return self._C[d]
-        return self._mkgroup(d)
-    def __call__(self, d):
-        if d in self._D:
-            return self._D[d]
-        return Boundary(self[d], self[d-1])
-    def boundaries(self, d):
-        return self(d+1).im
-    def cycles(self, d):
-        return self(d).ker
-
-class Homology:
-    def __init__(self, C):
-        self.C, self.dim = C, C.dim
-        self._H = {d : C.cycles(d) / C.boundaries(d) for d in range(self.dim+1)}
-    def __getitem__(self, d):
-        if d in self._H:
-            return self._H[d]
-        return self.C.cycles(d) / self.C.boundaries(d)
-    def __repr__(self):
-        pre = {d : 'H%d = span(' % d for d in range(self.dim+1)}
-        return ',\n'.join(['%s%s)' % (pre[d],pad(str(self[d]), len(pre[d])))\
-                            for d in range(self.dim+1)])
+# class ChainComplex: #(Complex):
+#     def __init__(self, K, subcomplex=None):
+#         self.K, self.subcomplex, self.dim = K, subcomplex, K.dim
+#         self._C = {d : ChainGroup(K, d, subgroup=self._subgroup(d)) for d in range(K.dim+2)}
+#         self._D = {d : Boundary(self[d], self[d-1]) for d in range(K.dim+2)}
+#     def _mkgroup(self, d):
+#         return ChainGroup(self.K, d, subgroup=self._subgroup(d))
+#     def _subgroup(self, d):
+#         if self.subcomplex is not None:
+#             return self.subcomplex[d]
+#         return None
+#     def __getitem__(self, d):
+#         if d in self._C:
+#             return self._C[d]
+#         return self._mkgroup(d)
+#     def __call__(self, d):
+#         if d in self._D:
+#             return self._D[d]
+#         return Boundary(self[d], self[d-1])
+#     def boundaries(self, d):
+#         return self(d+1).im
+#     def cycles(self, d):
+#         return self(d).ker
+#
+# class Homology:
+#     def __init__(self, C):
+#         self.C, self.dim = C, C.dim
+#         self._H = {d : C.cycles(d) / C.boundaries(d) for d in range(self.dim+1)}
+#     def __getitem__(self, d):
+#         if d in self._H:
+#             return self._H[d]
+#         return self.C.cycles(d) / self.C.boundaries(d)
+#     def __repr__(self):
+#         pre = {d : 'H%d = span(' % d for d in range(self.dim+1)}
+#         return ',\n'.join(['%s%s)' % (pre[d],pad(str(self[d]), len(pre[d])))\
+#                             for d in range(self.dim+1)])

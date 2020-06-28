@@ -10,10 +10,10 @@ def is_homomorphism(f):
     return all(f(x+y) == f(x)+f(y) for x,y in combinations(f.X,2))
 
 def is_injective(f):
-    return all(len(f.preimage(y)) < 2 for y in self.Y)
+    return all(len(f.preimage(y)) < 2 for y in f.Y)
 
 def is_surjective(f):
-    return all(len(f.preimage(y) > 0 for y in self.Y))
+    return all(len(f.preimage(y)) > 0 for y in f.Y)
 
 def is_bijective(f):
     return is_injective(f) and is_surjective(f)
@@ -24,13 +24,57 @@ def is_isomorphism(f):
 
 class Function(Callable):
     def __init__(self, X, Y):
+        assert (isinstance(X, self.space_t)
+            and isinstance(Y, self.space_t))
         self.X, self.Y = X, Y
+    def __call__(self, x):
+        if isinstance(x, self.space_t.element_t):
+            return self._map(x)
+        elif isinstance(x, self.space_t):
+            return self._image(x)
+    # def preimage(self, y):
+    #     return {x for x in self.X if self(x) == y}
+    @property
     @abstractmethod
-    def _image(self):
+    def space_t(self):
+        pass
+    @abstractmethod
+    def _map(self, x):
+        pass
+    @abstractmethod
+    def _preimage(self, X=None):
+        pass
+    @abstractmethod
+    def _image(self, X=None):
         pass
     @abstractmethod
     def _kernel(self):
         pass
+
+# class Functor(Callable):
+#     def __init__(self, A, B):
+#
+#     def __call__(self, x):
+#         if isinstance(x, self.function_t):
+#             return self._fun(x)
+#     @abstractmethod
+#     def _fun(self):
+#         pass
+#     @property
+#     @abstractmethod
+#     def function_t(self):
+#         pass
+
+# class ComplexFunctor(Monomorphism, Identity):
+#     space_t = ChainGroup
+#     def __init__(self, X, Y):
+#         Monomorphism.__init__(self, X, Y)
+#         assert all(x in self.Y for x in self.X)
+
+
+class Identity(Function):
+    def _map(self, x):
+        return x if x in self.Y else self.Y.zero
 
 
 class Homomorphism(Function):
@@ -42,11 +86,21 @@ class Homomorphism(Function):
         self.im = self._image()
         self.ker = self._kernel()
         self.coker = self._cokernel()
-    def _image(self):
-        im = lmap(self, self.X) + list(self.Y.zero.basis)
-        return self.Y.subgroup(im)
+    def _preimage(self, Y=None):
+        Y = self.Y if Y is None else Y
+        if isinstance(Y, self.Y.element_t):
+            pre = [x for x in self.X if self(x) == Y]
+        elif isinstance(Y, self.space_t):
+            pre = [x for x in self.X if self(x) in Y]
+        else:
+            raise TypeError('%s is not compatable with types %s, %s' %\
+                    (str(Y), str(self.space_t), str(self.Y.element_t)))
+        return self.X.subgroup(pre)
+    def _image(self, X=None):
+        X = self.X if X is None else X
+        return self.Y.subgroup(lmap(self, X))
     def _kernel(self):
-        if self.im.to_mat().is_zero:
+        if self.im.is_zero():
             return self.X
         im = lmap(self, self.X) + list(self.Y.zero.basis)
         null = hstack(self.Y.to_vec(c) for c in im).nullspace()
@@ -55,6 +109,42 @@ class Homomorphism(Function):
     def _cokernel(self):
         coker = [y for y in self.Y if not y in self.im]
         return self.Y.subgroup(coker)
+
+class Monomorphism(Homomorphism):
+    def __init__(self, X, Y):
+        Homomorphism.__init__(self, X, Y)
+        for y in self.Y:
+            pre = self._preimage(y)
+            try:
+                assert len(pre) < 2
+            except AssertionError:
+                raise AssertionError(self._error_str(y, pre))
+    def _error_str(self, y, pre):
+        return '%s\n\t%s' % ('Function is not injective:', '%s = %s'\
+                % (' = '.join(['f(%s)' % str(x) for x in pre]), str(y)))
+    def __repr__(self):
+        return '-inj->'
+
+class Epimorphism(Homomorphism):
+    def __init__(self, X, Y):
+        Homomorphism.__init__(self, X, Y)
+        try:
+            assert self.im == self.Y
+        except AssertionError:
+            raise AssertionError(self._error_str())
+    def _error_str(self):
+        return '%s\n\t%s' % ('Function is not surjective:', 'f(%s) = %s != %s'\
+                            % (str(self.X), str(self.im), str(self.Y)))
+    def __repr__(self):
+        return '-sur->'
+
+
+class Isomorphism(Epimorphism, Monomorphism):
+    def __init__(self, X, Y):
+        Epimorphism.__init__(self, X, Y)
+        Monomorphism.__init__(self, X, Y)
+    def __repr__(self):
+        return '-iso->'
 
 
 # class Map:
