@@ -150,7 +150,6 @@ class SimplicialChainComplex(ChainComplex):
         pairs = ['%s %s' % (str(self(d+1)), str(self[d])) for d in self]
         return '0 %s %s 0' % ('\n  '.join(pairs), self(0))
 
-
 class ShortExactSequence(ExactSequence):
     def __init__(self):
         ExactSequence.__init__(self, (2,1,0))
@@ -184,7 +183,7 @@ class ZeroChainProjection(ChainProjection):
         return '----->'
 
 class ChainPairSES(ShortExactSequence):
-    group_t = ChainGroup
+    space_t = ChainGroup
     def __init__(self, G, H):
         self.G, self.H = G, H
         ShortExactSequence.__init__(self)
@@ -232,66 +231,78 @@ class ChainPairSES(ShortExactSequence):
 # self(dim, 1) = ChainInclusion(CK[dim], C[dim])
 # self(dim, 0) = ZeroChainProjection(C[dim])
 
-
-
-class ChainComplexFunctor:
-    def __init__(self, X, Y):
-        self.X, self.Y = X, Y
-        self.im = self.Y.subspace([X(d).im for d in X])
-        self.ker = self.X.subspace([X(d).ker for d in X])
-
-
-class ChainComplexPairSES(ShortExactSequence):
-    space_t = ChainGroup
-    def __init__(self, CK, CL):
-        self.CK, self.CL = CK, CL
-        ShortExactSequence.__init__(self)
-        self._sequences = {d : ChainPairSES(self._groups[d][2],
-                                            self._groups[d][1]) for d in self}
-        self._seqhomomorphisms = {d : ChainComplexFunctor(
-                                        self._sequences[d],
-                                        self._sequences[d-1]) for d in self}
-    def _mksequence(self, dim):
-        return ChainPairSES(self[dim][1], self[dim][2])
-    def _mkgroup(self, idx):
-        if idx == 2:
-            return self.CL
-        elif idx == 1:
-            return self.CK
-        elif idx == 0:
-            return self.CK.as_pair(self.CL)
-    def _mkhomomorphism(self, idx):
-        return ChainComplexFunctor(self._groups[idx], self._groups[idx-1])
-    def __getitem__(self, dim=None, idx=None):
-        if dim is None and idx in self._groups:
-            return self._groups[idx]
-        elif dim in self._sequences and idx is None:
-            return self._sequences[dim]
-        elif dim in self._sequences and idx in self._groups:
-            return self._sequences[dim][idx]
-    def __call__(self, dim=None, idx=None):
-        if dim is None and idx in self._groups:
-            return self._groups[idx]
-        elif dim in self._sequences and idx is None:
-            return self._sequences[dim]
-        elif dim in self._sequences and idx in self._groups:
-            return self._sequences[dim][idx]
-    # def _mkgroup(self, d):
-    #     if d == 2:
-    #         return self.CL
-    #     elif d == 1:
-    #         return self.CK
-    #     elif d == 0:
-    #         return self.CK.as_pair(self.CL)
-    # def _mkhomomorphism(self, d):
-    #     if d == 3:
-    #         return ZeroChainInclusion(self[2])
-    #     if d == 2:
-    #         return ChainInclusion(self[2], self[1])
-    #     elif d == 1:
-    #         return ChainProjection(self[1], self[0])
-    #     elif d == 0:
-    #         return ZeroChainProjection(self[0])
+# class ChainComplexFunctor:
+#     def __init__(self, X, Y):
+#         self.X, self.Y = X, Y
+#         if X is None:
+#             self.im = self.Y.subspace([Y(d).zero_group() for d in Y])
+#             self.ker = None
+#         elif Y is None:
+#             self.ker = self.X
+#             self.im = None
+#         else:
+#             self.im = self.Y.subspace([X(d).im for d in X])
+#             self.ker = self.X.subspace([X(d).ker for d in X])
+#
+#
+#
+#
+# class ChainComplexPairSES(ShortExactSequence):
+#     space_t = ChainGroup
+#     def __init__(self, CK, CL):
+#         self.CK, self.CL = CK, CL
+#         ShortExactSequence.__init__(self)
+#         # self._sequences = {d : ChainPairSES(self._groups[d][2],
+#         #                                     self._groups[d][1]) for d in self}
+#         # self._seqhomomorphisms = {d : ChainComplexFunctor(
+#         #                                 self._sequences[d],
+#         #                                 self._sequences[d-1]) for d in self}
+#     def _mksequence(self, dim):
+#         return ChainPairSES(self[dim][1], self[dim][2])
+#     def _mkgroup(self, idx):
+#         if idx == 2:
+#             return self.CL
+#         elif idx == 1:
+#             return self.CK
+#         elif idx == 0:
+#             return self.CK.as_pair(self.CL)
+#     def _mkhomomorphism(self, idx):
+#         X = self._groups[idx] if idx in self._groups else None
+#         Y = self._groups[idx-1] if idx-1 in self._groups else None
+#         return ChainComplexFunctor(X, Y)
+#     def __getitem__(self, dim=None, idx=None):
+#         if dim is None and idx in self._groups:
+#             return self._groups[idx]
+#         elif dim is None and not idx in self._groups:
+#             return SimplicialChainComplex(self.CK.K)
+#         elif dim in self._sequences and idx is None:
+#             return self._sequences[dim]
+#         elif dim in self._sequences and idx in self._groups:
+#             return self._sequences[dim][idx]
+#
+#     def __call__(self, dim=None, idx=None):
+#         if dim is None and idx in self._groups:
+#             return self._groups[idx]
+#         elif dim in self._sequences and idx is None:
+#             return self._sequences[dim]
+#         elif dim in self._sequences and idx in self._groups:
+#             return self._sequences[dim][idx]
+#     # def _mkgroup(self, d):
+#     #     if d == 2:
+#     #         return self.CL
+#     #     elif d == 1:
+#     #         return self.CK
+#     #     elif d == 0:
+#     #         return self.CK.as_pair(self.CL)
+#     # def _mkhomomorphism(self, d):
+#     #     if d == 3:
+#     #         return ZeroChainInclusion(self[2])
+#     #     if d == 2:
+#     #         return ChainInclusion(self[2], self[1])
+#     #     elif d == 1:
+#     #         return ChainProjection(self[1], self[0])
+#     #     elif d == 0:
+#     #         return ZeroChainProjection(self[0])
 
 
 # class ChainComplexInclusion(Monomorphism, Identity):

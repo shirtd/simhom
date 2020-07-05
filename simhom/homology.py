@@ -44,7 +44,6 @@ class ZeroChainCoset(ChainCoset, FGZeroCoset):
 ''' STRUCTURES '''
 ''''''''''''''''''
 
-
 class ChainQuotient(Quotient):
     element_t = ChainCoset
     zero_t = ZeroChainCoset

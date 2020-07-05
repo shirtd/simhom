@@ -1,218 +1,181 @@
-# from simhom.simplicial import Chain
-from collections.abc import Hashable, Set, Mapping
+from __future__ import annotations
+
+from typing import Type, TypeVar, Generic, Callable, Collection, Tuple,\
+                    Container, NewType, Hashable, AbstractSet, Dict,\
+                     Iterable, Mapping, Union, ItemsView, Iterator
 from simhom.util import hstack, stuple, cref, slist
 from itertools import combinations
 from sympy import Matrix, zeros
 from abc import abstractmethod
+from simhom.categories import *
 
 
-''''''''''''''''''
-''' PRIMITIVES '''
-''''''''''''''''''
+# O = TypeVar('O', bound='Object')
+# M = TypeVar('M', bound='Morphism')
+E = TypeVar('E', bound='AbstractElement')
+A = TypeVar('A', bound='Atom')
+N = TypeVar('N', bound='Generator')
 
 
-class GroupElement(Hashable):
-    def __init__(self, id):
+class AbstractElement:
+    def __init__(self, id: tuple) -> None:
         self.id = id
-    def is_zero(self):
-        return isinstance(self, ZeroElement)
+    def __eq__(self, other) -> bool:
+        return self.id == other.id
     def __hash__(self):
         return hash(self.id)
-    def __lt__(self, c):
-        return self.id < c.id
-    def __eq__(self, h):
-        return self.id == h.id
-    @abstractmethod
-    def __invert__(self):
-        pass
-    @abstractmethod
-    def __add__(self, g):
-        pass
-
-
-class ZeroElement(GroupElement):
-    def __init__(self, subgroup=None):
-        self.subgroup, self.basis = subgroup, []
-        if subgroup is not None:
-            self.basis = subgroup.basis + subgroup.zero.basis
-        GroupElement.__init__(self, tuple())
-    def __add__(self, g):
-        return g
-    def __invert__(self):
-        return self
-    def __eq__(self, g):
-        return (g.is_zero()
-            or (self.subgroup is not None
-            and g in self.subgroup))
-    def __hash__(self):
-        return GroupElement.__hash__(self)
-
-
-'''
-an element that can be vectorized.
-    maps atoms to coefficients '''
-class BasisElement(GroupElement, Mapping):
-    def __init__(self, map):
-        if not isinstance(map, dict):
-            self.map = {k : 1 for k in map}
-        else:
-            self.map = {k : v for k,v in map.items() if v != 0}
-        self.atoms = stuple(self.map)
-        id = tuple((a, self[a]) for a in self)
-        GroupElement.__init__(self, id)
-    def items(self):
-        for k,v in self.map.items():
-            yield (k,v)
-    def __len__(self):
-        return len(self.atoms)
-    def __iter__(self):
-        for s in self.atoms:
-            yield s
-    def __getitem__(self, a):
-        return self.map[a] if a in self else 0
-    def __contains__(self, a):
-        return a in self.map
-    def __hash__(self):
-        return GroupElement.__hash__(self)
     def __sub__(self, h):
         return self + ~h
-    def as_vec(self, imap):
-        v = zeros(len(imap),1)
-        for s,o in self.items():
-            v[imap[s]] = o
-        return v
-    @property
+    def __lt__(self, other):
+        return self.id < other.id
     @abstractmethod
-    def atom_t(self):
+    def __invert__(self):
+        pass
+    @abstractmethod
+    def __add__(self, other):
         pass
 
 
-''''''''''''''''''
-''' STRUCTURES '''
-''''''''''''''''''
-
-
-class Group:
-    def __init__(self, zero):
-        self.zero = zero
+class ZeroElement(AbstractElement):
+    def __init__(self) -> None:
+        AbstractElement.__init__(self, tuple())
+    def __add__(self, other) -> AbstractElement:
+        return other
+    def __invert__(self) -> AbstractElement:
+        return self
+    def __eq__(self, other) -> bool:
+        return isinstance(other, ZeroElement) or other == 0
+    @classmethod
     @abstractmethod
-    def __contains__(self, g):
+    def is_zero(cls, *args, **kwargs):
         pass
-    @abstractmethod
-    def is_zero(self):
-        pass
+
+class GroupElement(AbstractElement):
+    def __new__(cls, *args, **kwargs):
+        if cls.zero_t.is_zero(*args, **kwargs):
+            return cls._mkzero(*args, **kwargs)
+        return super().__new__(cls)
+    def __init__(self, id):
+        AbstractElement.__init__(self, id)
     @property
     @abstractmethod
     def zero_t(self):
         pass
-    @property
     @abstractmethod
-    def element_t(self):
+    def _mkzero(self, *args, **kwargs):
         pass
 
-class ZeroGroup(Group):
-    def __init__(self, zero):
-        self.zero = zero
-    def __contains__(self, g):
-        return g == self.zero
-    def __repr__(self):
-        return 'Group(0)'
 
-class Basis:
-    def __init__(self, basis):
-        self.elems = list({e for b in basis for e in b})
-        self.imap = {e : i for i,e in enumerate(self.elems)}
-        self.basis = [b for b in basis if not b.is_zero()]
-    def __contains__(self, g):
-        if (not len(self.basis)
-            or any(not e in self.imap for e in g)):
-            return False
-        M = hstack(self.to_mat(), self.to_vec(g))
-        return all(p < len(self.basis) for p in M.rref()[1])
-    def to_mat(self):
-        return hstack(map(self.to_vec, self.basis))
-    def reduce(self, S):
-        B = cref(hstack(self.to_vec(c) for c in S))
-        return {self.to_element(v) for v in B.columnspace()}
-    def __eq__(self, S):
+class Atom:
+    pass
+
+
+class Generator(Mapping[A, int]): # Atom A
+    def __init__(self, map: Mapping[A, int]):
+        self._map = {k : v for k,v in map.items() if v != 0}
+        self._atoms = stuple(self._map)
+    def items(self) -> ItemsView[A, int]:
+        return self._map.items()
+    def __len__(self) -> int:
+        return len(self._atoms)
+    def __iter__(self) -> Iterator[A]:
+        for s in self._atoms:
+            yield s
+    def __getitem__(self, a: A) -> int:
+        return self._map[a] if a in self else 0
+    def get_atom(self, i: int) -> A:
+        return self._atoms[i]
+    def __contains__(self, a) -> bool:
+        return a in self._map
+    def as_vec(self, imap : Mapping[A, int]) -> Matrix:
+        v = zeros(len(imap), 1)
+        for s, o in self.items():
+            v[imap[s]] = o
+        return v
+
+
+''''''''''''''''
+'''' OBJECTS '''
+class Group(Object, Generic[E]):
+    def __init__(self, zero : E) -> None:
+        Object.__init__(self)
+        self._zero = zero
+    @abstractmethod
+    def subgroup(self, *args, **kwargs):
+        pass
+
+# Finite Group
+class FiniteGroup(Group[E]):
+    def __init__(self, zero : E, elements : AbstractSet[E]) -> None:
+        Group.__init__(self, zero)
+        self._elements = {zero}.union(elements)
+    def __contains__(self, e) -> bool:
+        return e in self._elements
+    def __iter__(self) -> Iterator[E]:
+        for e in self._elements:
+            yield e
+    def __len__(self) -> int:
+        return len(self._elements)
+
+class Basis(AbstractSet[Generator[A]]):
+    def __init__(self, basis : AbstractSet[Generator[A]]) -> None:
+        self._elems = list({e for b in basis for e in b})
+        self._imap = {e : i for i,e in enumerate(self._elems)}
+        self._basis = self.reduce(basis)
+    def __len__(self) -> int:
+        return len(self._basis)
+    def __eq__(self, S) -> bool:
         return (all(s in self for s in S)
             and all(s in S for s in self))
-    @abstractmethod
-    def to_vec(self, g):
-        pass
-    @abstractmethod
-    def to_element(self, v):
-        pass
-    def __repr__(self):
+    def __iter__(self) -> Iterator:
+        for b in self._basis:
+            yield b
+    def get_atom(self, i):
+        return self._elems[i]
+    def has_atom(self, a):
+        return a in self._elems
+    def to_vec(self, g: Generator[A]) -> Matrix:
+        return g.as_vec(self._imap)
+    def __repr__(self) -> str:
         return '<%s>' % ', '.join(map(str, self))
-
-
-class FGGroup(Basis, Group):
-    def __init__(self, basis, zero):
-        basis = [b for b in basis if not b == zero]
-        Group.__init__(self, zero)
-        Basis.__init__(self, basis)
-    def is_zero(self):
-        return not len(self.basis)
-    def __len__(self):
-        return len(self.basis)
-    def __iter__(self):
-        for g in self.basis:
-            yield g
-    def __repr__(self):
-        return 'Group(%s)' % Basis.__repr__(self) if \
-                            not self.is_zero() else '0'
-
-
-class Quotient(FGGroup):
-    def __init__(self, G, H):
-        basis, zero = set(), self.zero_t(G, H)
-        E = set(G.basis) - set(zero.basis)
-        while len(E):
-            S = self.element_t(E.pop(), zero)
-            if zero != S:
-                basis.add(S)
-            E -= set(S.basis)
-        FGGroup.__init__(self, list(basis), zero)
-    def __repr__(self):
-        classes = [self.zero] + self.basis
-        return ',\n'.join(map(str, classes))
-
+    def __contains__(self, other):
+        if not all(self.has_atom(a) for a in other):
+            return False
+        R = self.reduce(self._basis + [other])
+        return len(R) <= len(self)
+    @abstractmethod
+    def reduce(self, S):
+        pass
+    # @abstractmethod
+    # def to_element(self, v: Matrix) -> Generator[A]:
+    #     pass
+    # def __contains__(self, g) -> bool:
+    #     if not (len(self) and all(e in self._imap for e in g)):
+    #         return False
+    #     M = hstack(self.to_mat(), self.to_vec(g))
+    #     return all(p < len(self._basis) for p in M.rref()[1])
+    # def to_mat(self) -> Matrix:
+    #     return hstack(map(self.to_vec, self._basis))
+    # def reduce(self, S: AbstractSet[Generator[A]]) -> AbstractSet[Generator[A]]:
+    #     B = cref(hstack(self.to_vec(c) for c in S))
+    #     return {self.to_element(v) for v in B.columnspace()}
 
 ''''''''''''''''''
-''''' HYBRID '''''
-''''''''''''''''''
-
-
-class FGCoset(Basis, BasisElement):
-    def __init__(self, g, H):
-        self.g, self.H = g, H
-        # Hbasis = H.subgroup.reduce(H.basis)
-        elements = {g + h for h in H.basis}.union({g})
-        Basis.__init__(self, elements)
-        self.basis = self.reduce(self.basis) - self.reduce(H.basis)
-        BasisElement.__init__(self, self.basis)
-    def __contains__(self, g):
-        return Basis.__contains__(self, g)
-    def __hash__(self):
-        return BasisElement.__hash__(self)
-    def __add__(self, S):
-        return self.__class__(self.g + S.g, self.H)
-    def _mkstr(self, reps):
-        if not len(reps):
-            return '[0]'
-        s = '[%s]' % str(reps[0])
-        if len(reps) == 1:
-            return s
-        return '%s = %s' % (s, ('\n%s = ' % (' '*(len(s)))).\
-                    join(['[%s]' % str(c) for c in reps[1:]]))
-    def __repr__(self):
-        return self._mkstr(slist(self.basis))
-
-
-class FGZeroCoset(FGCoset, ZeroElement):
-    def __init__(self, G, H):
-        FGCoset.__init__(self, G.zero, H)
-        ZeroElement.__init__(self, H)
-    def __repr__(self):
-        return self._mkstr(slist([self.g]+self.basis))
+'''' MORPHISMS '''
+class Homomorphism(Morphism[Group[E]]):
+    def __init__(self, X: Group[E], Y: Group[E]) -> None:
+        Morphism.__init__(self, X, Y)
+    def __call__(self, x: Union[AbstractElement, Group[E]])\
+            -> Union[AbstractElement, Group[E]]:
+        if isinstance(x, AbstractElement):
+            return self._element_map(x)
+        elif isinstance(x, Group):
+            return self._group_map(x)
+        else:
+            raise TypeError(str(x))
+    @abstractmethod
+    def _element_map(self, x: AbstractElement) -> AbstractElement:
+        pass
+    @abstractmethod
+    def _group_map(self, U: Group[E]) -> Group[E]:
+        pass
