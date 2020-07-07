@@ -1,4 +1,4 @@
-from sympy import Matrix
+from sympy import Matrix, zeros
 
 def stuple(s, *args, **kw):
     return tuple(sorted(s, *args, **kw))
@@ -18,9 +18,9 @@ def vstack(*L):
 def pad(s, pad=0):
     return s.replace('\n', '\n%s' % (' '*pad))
 
-def rref(M): return M.rref()[0]
-
-def cref(M): return rref(M.T).T
+# def rref(M): return M.rref()[0]
+#
+# def cref(M): return rref(M.T).T
 
 def tmap(f, t): return tuple(map(f, t))
 def stmap(f, t): return stuple(map(f, t))
@@ -41,3 +41,7 @@ def to_mat(basis):
             v[imap[s]] = int(c[s])
         vs.append(v)
     return hstack(vs)
+
+
+def ker(f): return f.ker
+def im(f): return f.im

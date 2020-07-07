@@ -3,9 +3,9 @@ from __future__ import annotations
 from typing import Type, TypeVar, Generic, Callable, Collection, Tuple,\
                     Container, NewType, Hashable, AbstractSet, Dict,\
                      Iterable, Mapping, Union, ItemsView, Iterator
-from simhom.util import hstack, stuple, cref, slist
+from simhom.util import stuple, slist
 from itertools import combinations
-from sympy import Matrix, zeros
+# from sympy import Matrix, zeros
 from abc import abstractmethod
 from simhom.categories import *
 
@@ -87,11 +87,11 @@ class Generator(Mapping[A, int]): # Atom A
         return self._atoms[i]
     def __contains__(self, a) -> bool:
         return a in self._map
-    def as_vec(self, imap : Mapping[A, int]) -> Matrix:
-        v = zeros(len(imap), 1)
-        for s, o in self.items():
-            v[imap[s]] = o
-        return v
+    # def as_vec(self, imap : Mapping[A, int]) -> Matrix:
+    #     v = zeros(len(imap), 1)
+    #     for s, o in self.items():
+    #         v[imap[s]] = o
+    #     return v
 
 
 ''''''''''''''''
@@ -134,8 +134,8 @@ class Basis(AbstractSet[Generator[A]]):
         return self._elems[i]
     def has_atom(self, a):
         return a in self._elems
-    def to_vec(self, g: Generator[A]) -> Matrix:
-        return g.as_vec(self._imap)
+    # def to_vec(self, g: Generator[A]) -> Matrix:
+    #     return g.as_vec(self._imap)
     def __repr__(self) -> str:
         return '<%s>' % ', '.join(map(str, self))
     def __contains__(self, other):

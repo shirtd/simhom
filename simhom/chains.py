@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from simhom.simplicial import *
 
-from simhom.util import stuple, lmap, lfilt, cref, slist
-from sympy import Matrix, zeros
+from simhom.util import stuple, lmap, lfilt, slist, to_mat
+# from sympy import Matrix, zeros
 from abc import abstractmethod
 
 
@@ -35,9 +35,10 @@ class ZeroChain(ZeroElement, AbstractChain):
     @classmethod
     def is_zero(cls, map={}, dim=-1):
         return not len(map) or all(v == 0 for v in map.values())
-    def __init__(self, dim: int=-1, subgroup=None) -> None:
+    def __init__(self, dim: int=-1) -> None:
         ZeroElement.__init__(self)
         AbstractChain.__init__(self, (), dim)
+        self._map = {}
     def __len__(self):
         return 0
     def __iter__(self) -> Iterator[Simplex]:
@@ -82,8 +83,6 @@ class Chain(Generator[Simplex], GroupElement, AbstractChain):
         return Chain(map, self.dim)
     def __invert__(self) -> AbstractChain:
         return self * -1
-    def normalize(self):
-        return self * self[min(self)]
     def __repr__(self) -> str:
         s = ''
         for i, (t, o) in enumerate(self.items()):
@@ -102,59 +101,47 @@ class Chain(Generator[Simplex], GroupElement, AbstractChain):
         return AbstractChain.__hash__(self)
 
 
-class ChainGroup(Group[AbstractChain], Basis[Simplex]):
+class AbstractChainCoset(AbstractChain):
+    def __init__(self, chain, subgroup):
+        for s in chain:
+            if s in subgroup._lmap:
+                c = subgroup._lmap[s]
+                chain = chain - c * (chain[s] / c[s])
+        self._rep = chain
+        self._subgroup = subgroup
+        AbstractChain.__init__(self, self._rep.id, self._rep.dim)
+    def __eq__(self, other):
+        return other - self._rep in self._subgroup
+    def __hash__(self):
+        return AbstractChain.__hash__(self)
+
+
+class ZeroChainCoset(AbstractChainCoset, ZeroChain):
     @classmethod
-    def simplicial_init(cls, K, dim):
-        basis = [Chain({s : 1}, dim) for s in K[dim]]
-        return cls(basis, ZeroChain(dim))
-    # @classmethod
-    # def reduce(cls, basis):
-    #     elems = list({e for b in basis for e in b})
-    #     imap = {e : i for i,e in enumerate(elems)}
-    #     B = cref(hstack(c.as_vec(imap) for c in basis)).columnspace()
-    #     return [Chain({elems[i] : c for i,c in enumerate(v)}) for v in B]
-    def __init__(self, basis: AbstractSet[Chain], zero: ZeroChain, dim=-1) -> None:
-        self.dim = zero.dim if dim < 0 else dim
-        Group.__init__(self, zero)
-        Basis.__init__(self, {b for b in basis if b != zero})
-    # def to_element(self, v: Matrix) -> Chain:
-    #     return Chain({self.get_atom(i) : c for i,c in enumerate(v)})
-    def subgroup(self, basis):
-        return ChainGroup(basis, self._zero)
-    def reduce(self, basis):
-        elems = list({e for b in basis for e in b})
-        imap = {e : i for i,e in enumerate(elems)}
-        B = cref(hstack(c.as_vec(imap) for c in basis)).columnspace()
-        return [Chain({elems[i] : c for i,c in enumerate(v)}) for v in B]
-    # def reduce(self, S):
-    #     C, h = list(sorted(set(S))), 0
-    #     for s in self._elems:
-    #         if h < len(C):
-    #             x = max(range(h, len(C)), key=lambda i: abs(C[i][s]))
-    #             if C[x][s] != 0:
-    #                 C[h], C[x] = C[x], C[h]
-    #                 for i in range(len(C)):
-    #                     if i != h:
-    #                         C[i] = C[i] - C[h] * (C[i][s] / C[h][s])
-    #                 h += 1
-    #         else: break
-    #     return [c * c[min(c)] for c in sorted(C) if c != 0]
+    def is_zero(cls, chain, subgroup):
+        return chain in subgroup
+    def __init__(self, chain, subgroup):
+        AbstractChainCoset.__init__(self, chain, subgroup)
+        ZeroChain.__init__(self, chain.dim)
+    def __mul__(self, a: int) -> AbstractChain:
+        return self
+    def __repr__(self) -> str:
+        return '[%s[]]' % AbstractChain.__repr__(self)
+    def __iter__(self):
+        return iter(self._rep)
 
 
-class ChainBoundary(Homomorphism[Chain]):
-    element_t, group_t = Chain, ChainGroup
-    def __init__(self, X, Y):
-        Homomorphism.__init__(self, X, Y)
-        self.im = self(self.X)
-        self.ker = self._kernel()
-    def _element_map(self, x):
-        return csum(Chain.boundary_init(s) * o for s, o in x.items())
-    def _group_map(self, U):
-        return self.Y.subgroup(map(self, U))
-    def _kernel(self):
-        # if self.im.is_zero():
-        #     return self.X
-        im = list(map(self, self.X)) + list(self.Y._zero)
-        null = hstack(self.Y.to_vec(c) for c in im).nullspace()
-        ker = [csum(self.X._basis[i] * v for i,v in enumerate(m[:len(self.X),0])) for m in null]
-        return self.X.subgroup(ker)
+class ChainCoset(AbstractChainCoset, Chain):
+    zero_t = ZeroChainCoset
+    @classmethod
+    def _mkzero(cls, chain, subgroup):
+        return ZeroChainCoset(chain, subgroup)
+    def __init__(self, chain, subgroup):
+        AbstractChainCoset.__init__(self, chain, subgroup)
+        Chain.__init__(self, self._rep._map, self._rep.dim)
+    def __add__(self, other):
+        return ChainCoset(Chain.__add__(self, other), self._subgroup)
+    def __mul__(self, a):
+        return ChainCoset(self._rep * a, self._subgroup)
+    def __repr__(self):
+        return '[%s]' % str(self._rep)

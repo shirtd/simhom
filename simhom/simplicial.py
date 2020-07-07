@@ -4,7 +4,7 @@ from __future__ import annotations
 from simhom.algebra import *
 
 # from simhom.algebra import BasisElement, ZeroElement
-from simhom.util import stuple, lmap, lfilt, cref, slist
+from simhom.util import stuple, lmap, lfilt, slist
 # from collections.abc import Mapping, MutableMapping
 from typing import List
 # from sympy import Matrix, zeros
