@@ -44,7 +44,10 @@ class ZeroElement(AbstractElement):
     def __invert__(self) -> AbstractElement:
         return self
     def __eq__(self, other) -> bool:
-        return isinstance(other, ZeroElement) or other == 0
+        return (isinstance(other, ZeroElement) or other == 0
+            or AbstractElement.__eq__(self, other))
+    def __hash__(self):
+        return AbstractElement.__hash__(self)
     @classmethod
     @abstractmethod
     def is_zero(cls, *args, **kwargs):
@@ -57,6 +60,11 @@ class GroupElement(AbstractElement):
         return super().__new__(cls)
     def __init__(self, id):
         AbstractElement.__init__(self, id)
+    def __eq__(self, other) -> bool:
+        return (not isinstance(other, int)
+            and AbstractElement.__eq__(self, others))
+    def __hash__(self):
+        return AbstractElement.__hash__(self)
     @property
     @abstractmethod
     def zero_t(self):
@@ -125,6 +133,8 @@ class Basis(AbstractSet[Generator[A]]):
     def __len__(self) -> int:
         return len(self._basis)
     def __eq__(self, S) -> bool:
+        if S == 0:
+            return not len(self)
         return (all(s in self for s in S)
             and all(s in S for s in self))
     def __iter__(self) -> Iterator:
@@ -137,7 +147,10 @@ class Basis(AbstractSet[Generator[A]]):
     # def to_vec(self, g: Generator[A]) -> Matrix:
     #     return g.as_vec(self._imap)
     def __repr__(self) -> str:
-        return '<%s>' % ', '.join(map(str, self))
+        sstr = ', '.join(map(str, self))
+        if len(sstr) > 50:
+            sstr = ',\n     '.join(map(str, self))
+        return 'span(%s)' % sstr
     def __contains__(self, other):
         if not all(self.has_atom(a) for a in other):
             return False

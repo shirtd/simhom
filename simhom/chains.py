@@ -24,8 +24,8 @@ class AbstractChain(AbstractElement, Atom):
             or AbstractElement.__eq__(self, ~h))
     def __hash__(self) -> int:
         return AbstractElement.__hash__(self)
-    def __repr__(self) -> str:
-        return '%d-Chain' % self.dim
+    # def __repr__(self) -> str:
+    #     return '%d-Chain' % self.dim
     @abstractmethod
     def __mul__(self, a: int) -> AbstractChain:
         pass
@@ -46,7 +46,8 @@ class ZeroChain(ZeroElement, AbstractChain):
     def items(self) -> ItemsView[Simplex, int]:
         return {}.items()
     def __repr__(self) -> str:
-        return '%s[]' % AbstractChain.__repr__(self)
+        # return '%s[]' % AbstractChain.__repr__(self)
+        return 'O'
     def __getitem__(self, s) -> int:
         if isinstance(s, Simplex):
             return 0
@@ -93,7 +94,8 @@ class Chain(Generator[Simplex], GroupElement, AbstractChain):
             if abs(o) > 1:
                 s += '%d*' % abs(o)
             s += str(t)
-        return '%s[%s]' % (AbstractChain.__repr__(self), s)
+        # return '%s[%s]' % (AbstractChain.__repr__(self), s)
+        return '%s' % s
     def __lt__(self, other) -> bool:
         return (len(self) < len(other)
             or AbstractElement.__lt__(self, other))
@@ -111,7 +113,12 @@ class AbstractChainCoset(AbstractChain):
         self._subgroup = subgroup
         AbstractChain.__init__(self, self._rep.id, self._rep.dim)
     def __eq__(self, other):
-        return other - self._rep in self._subgroup
+        try:
+            return other - self._rep in self._subgroup
+        except TypeError as e:
+            print(other, self._rep)
+            print(self._subgroup)
+            raise e
     def __hash__(self):
         return AbstractChain.__hash__(self)
 
@@ -123,10 +130,15 @@ class ZeroChainCoset(AbstractChainCoset, ZeroChain):
     def __init__(self, chain, subgroup):
         AbstractChainCoset.__init__(self, chain, subgroup)
         ZeroChain.__init__(self, chain.dim)
+    def __eq__(self, other):
+        return (ZeroChain.__eq__(self, other)
+            or AbstractChainCoset.__eq__(self, other))
+    def __hash__(self):
+        return AbstractChainCoset.__hash__(self)
     def __mul__(self, a: int) -> AbstractChain:
         return self
     def __repr__(self) -> str:
-        return '[%s[]]' % AbstractChain.__repr__(self)
+        return '[O]' % AbstractChain.__repr__(self)
     def __iter__(self):
         return iter(self._rep)
 

@@ -4,6 +4,7 @@ from simhom.chains import *
 
 
 class ChainGroup(Group[AbstractChain], Basis[Simplex]):
+    element_t = AbstractChain
     @classmethod
     def simplicial_init(cls, K, dim):
         basis = [Chain({s : 1}, dim) for s in K[dim]]
@@ -13,6 +14,7 @@ class ChainGroup(Group[AbstractChain], Basis[Simplex]):
         Group.__init__(self, zero)
         Basis.__init__(self, {b for b in basis if b != zero})
         self._lmap = {max(c) : c for c in self._basis if len(c)}
+        self.depth = 0
     def subgroup(self, basis):
         return ChainGroup(basis, self._zero)
     def is_subgroup(self, other):
@@ -50,9 +52,20 @@ class ChainGroup(Group[AbstractChain], Basis[Simplex]):
                 return ChainQuotientProjection(self, other)
             elif self.is_subgroup(other):
                 return ChainInclusion(self, other)
-        raise NotImplementedError('%d-%s >> %d-%s.' \
-                        % (self.dim, str(type(self)),
-                            other.dim, str(type(other))))
+            else:
+                return ChainProjection(self, other)
+        # if self == 0:
+        #     return ChainInclusion(self, other)
+        if other == 0:
+            return ChainProjection(self, other)
+        raise NotImplementedError('%d-%s >> %d-%s.\n (%s >> %s)' \
+                        % (self.dim, str(self), other.dim, str(other),
+                            str(type(self)), str(type(other))))
+    # def __rrshift__(self, other):
+    #     if other == 0:
+    #         return ZeroChainInclusion(self)
+    #     raise NotImplementedError('%s >> %d-%s.' \
+    #         % (str(other), self.dim, str(type(self))))
 
 
 class ChainBoundary(Homomorphism[Chain]):
@@ -72,6 +85,8 @@ class ChainBoundary(Homomorphism[Chain]):
         null = to_mat(basis).nullspace()
         ker = [csum(self.X._basis[i] * v for i,v in enumerate(m[:len(self.X),0])) for m in null]
         return self.X.subgroup(ker)
+    def __repr__(self):
+        return '|bndy>'
 
 
 class ChainInclusion(Homomorphism[AbstractChain]):
@@ -89,23 +104,93 @@ class ChainInclusion(Homomorphism[AbstractChain]):
         if zero_group is not None:
             ker = [x for x in self.X if x in zero_group]
         return self.X.subgroup(ker)
+    def __repr__(self):
+        return '|incl>'
+
+class ChainProjection(Homomorphism[AbstractChain]):
+    element_t, group_t = AbstractChain, ChainGroup
+    def __init__(self, X, Y):
+        Homomorphism.__init__(self, X, Y)
+        self.im = self(self.X)
+        self.ker = self._kernel()
+    def _element_map(self, x):
+        return x if x in self.Y else self.Y._zero
+    def _group_map(self, U):
+        return self.Y.subgroup(basis=map(self, U))
+    def _kernel(self, zero_group=None):
+        ker = [x for x in self.X if self(x) == 0]
+        return self.X.subgroup(ker)
+    def __repr__(self):
+        return '|proj>'
+
+# class ZeroChainInclusion(Homomorphism[AbstractChain]):
+#     def __init__(self, Y):
+#         self.X, self.Y = 0, Y
+#         self.im = Y.subgroup([])
+#         self.ker = 0
+#     def __repr__(self):
+#         return '|incl>'
+#
+# class ZeroChainProjection(Homomorphism[AbstractChain]):
+#     def __init__(self, X):
+#         self.X, self.Y = X, 0
+#         self.im = 0
+#         self.ker = X
+#     def _group_map(self, U):
+#         return self.Y.subgroup(U)
+#     def __repr__(self):
+#         return '|proj>'
+
 
 
 class ChainQuotient(ChainGroup):
-    def __init__(self, group, subgroup) -> None:
-        self._group, self._subgroup, self.dim = group, subgroup, group.dim
-        zero = ZeroChainCoset(group._zero, subgroup)
-        basis = {ChainCoset(g, subgroup) for g in group}
+    element_t = AbstractChainCoset
+    def __init__(self, group, subgroup, basis=None, zero=None) -> None:
+        self._group, self._subgroup, self.dim = group, subgroup, subgroup.dim
+        zero = ZeroChainCoset(group._zero, subgroup) if zero is None else zero
+        basis = {ChainCoset(g, subgroup) for g in group} if basis is None else basis
         ChainGroup.__init__(self, [c for c in basis if not c == zero], zero)
-    def subgroup(self, subgroup):
-        return ChainQuotient(subgroup, self._subgroup)
+        self.depth = self._subgroup.depth + 1
+    def subgroup(self, group=None, basis=None):
+        group = self._group if group is None else group
+        # return ChainQuotient(basis, self._zero, self._subgroup)
+        return ChainQuotient(group, self._subgroup, basis, self._zero)
     def reduce(self, basis):
         return list(sorted(basis))
     def __contains__(self, c):
         return (any(c == l for l in self)
             or c == self._zero)
     def __rshift__(self, other):
-        return InducedMap(self, other)
+        if other == 0:
+            try:
+                zero_group = ChainGroup([], self._group._zero)
+                return InducedQuotientMap(self, zero_group / self._subgroup)
+            except AttributeError as e:
+                print(self, type(self), self.dim, self._group)
+                raise e
+        elif self.depth == 1 and other.depth == 0:
+            return ConnectingHomomorphism(self, other)
+        return InducedQuotientMap(self, other)
+
+class ConnectingHomomorphism(Homomorphism[Chain]):
+    element_t, group_t = AbstractChain, ChainGroup
+    def __init__(self, X, Y):
+        Homomorphism.__init__(self, X, Y)
+        self.im = self(self.X)
+        self.ker = self._kernel()
+    def _element_map(self, x):
+        return csum(Chain.boundary_init(s) * o for s, o in x.items())
+    def _group_map(self, U):
+        return self.Y.subgroup(map(self, U))
+    def _kernel(self, zero_group=None):
+        basis = list(map(self, self.X._group))
+        if zero_group is not None:
+            basis += list(zero_group._basis)
+        null = to_mat(basis).nullspace()
+        ker = [csum(self.X._group._basis[i] * v for i,v in enumerate(m[:len(self.X._group),0])) for m in null]
+        return self.X.subgroup(self.X._group.subgroup(ker))
+    def __repr__(self):
+        return '|conn>'
 
 
 class ChainQuotientProjection(Homomorphism[AbstractChain]):
@@ -121,9 +206,29 @@ class ChainQuotientProjection(Homomorphism[AbstractChain]):
     def _kernel(self, zero_group=None):
         ker = [x for x in self.X if self(x) == self.Y._zero]
         return self.X.subgroup(ker)
+    def __repr__(self):
+        return '|proj>'
+
+class ChainQuotientInclusion(Homomorphism[AbstractChain]):
+    element_t, group_t = AbstractChain, ChainGroup
+    def __init__(self, X, Y):
+        Homomorphism.__init__(self, X, Y)
+        self.im = self(self.X)
+        self.ker = self._kernel()
+    def _element_map(self, x):
+        return x._rep
+    def _group_map(self, U):
+        return self.Y.subgroup(map(self, U))
+    def _kernel(self, zero_group=None):
+        ker = []
+        if zero_group is not None:
+            ker = [x for x in self.X if x in zero_group]
+        return self.X.subgroup(self.X._group(ker))
+    def __repr__(self):
+        return '|proj>'
 
 
-class InducedMap(Homomorphism[AbstractChainCoset]):
+class InducedQuotientMap(Homomorphism[AbstractChainCoset]):
     element_t, group_t = AbstractChainCoset, ChainQuotient
     def __init__(self, X, Y):
         Homomorphism.__init__(self, X, Y)
@@ -133,7 +238,11 @@ class InducedMap(Homomorphism[AbstractChainCoset]):
     def _element_map(self, x):
         return ChainCoset(self._f(x), self.Y._subgroup)
     def _group_map(self, U):
-        return self.Y.subgroup(self._f(self.X._group))
-    def _kernel(self):
+        if isinstance(U, ChainQuotient):
+            return self.Y.subgroup(self._f(U._group))
+        return self.Y.subgroup(self._f(U))
+    def _kernel(self, zero_group=None):
         ker = self._f._kernel(self.Y._zero._subgroup)
         return self.X.subgroup(ker)
+    def __repr__(self):
+        return '%s*' % self._f.__repr__()
