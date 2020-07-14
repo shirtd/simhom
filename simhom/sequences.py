@@ -5,6 +5,14 @@ from simhom.homology import *
 from simhom.util import lmap, ker, im, pad
 import numpy as np
 
+# class ChainComplexIterator:
+#     @abstractmethod
+#     def __iter__(self):
+#         pass
+#     @abstractmethod
+#     def __next__(self):
+#         pass
+
 class ChainComplex:
     def __init__(self, seq, mkzero, idx=0):
         self._mkzero = mkzero
@@ -104,6 +112,9 @@ class InducedComplexMap(ComplexMap):
         self.im = self(self.X)
         self.ker = self._kernel()
     def _group_map(self, U):
+        idx = self.X.get_idx(U)
+        if not idx in self._f:
+            return (self.X[idx] >> self.Y[idx])(U)
         return self._f[self.X.get_idx(U)](U)
     def _complex_map(self, C):
         seq = {d : self(C[d]) for d in C}
@@ -207,3 +218,36 @@ class ChainComplexPairSES(ShortExactSequence):
         elif dim is None:
             return self[idx].boundaries()
         return self[idx].boundaries(dim)
+
+
+
+
+class HomologyPairLES(ExactSequence):
+    @classmethod
+    def complex_init(self, C):
+        seq = {3*d + i : C[i][d] for d in range(C.dim+1) for i in C}
+        for k in seq:
+            seq[k].idx = k
+        def mkzero(d):
+            return ChainGroup([], ZeroChain(dim=d))\
+                    / ChainGroup([], ZeroChain(dim=d))
+        return HomologyPairLES(seq, C.dim, mkzero)
+    def __init__(self, seq, dim, mkzero):
+        self.dim = dim
+        ExactSequence.__init__(self, seq, mkzero)
+    def get_idx(self, U):
+        return U.idx
+    def __iter__(self):
+        for i in reversed(range((self.dim+1)*3)):
+            yield i
+    def __getitem__(self, t):
+        t = 3*t[0] + t[1] if isinstance(t, tuple) else t
+        return ExactSequence.__getitem__(self, t)
+    def __call__(self, *t):
+        t = 3*t[0] + t[1] if len(t) > 1 else t[0]
+        return ExactSequence.__call__(self, t)
+    def subcomplex(self, seq, mkzero=None):
+        mkzero = self._mkzero if mkzero is None else mkzero
+        return HomologyPairLES(seq, self.dim, mkzero)
+    def __rshift__(self, other):
+        return InducedComplexMap(self, other)

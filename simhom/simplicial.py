@@ -64,7 +64,8 @@ class SimplicialSkeleton:
 
 
 class SimplicialComplex:
-    def __init__(self, S: List[List[int]]) -> None:
+    def __init__(self, S: List[List[int]], label='K') -> None:
+        self.label = label
         self.dim = max(len(s) for s in S) - 1
         self.S = {d : SimplicialSkeleton(d) for d in range(self.dim+1)}
         for s in S:

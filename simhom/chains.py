@@ -24,8 +24,6 @@ class AbstractChain(AbstractElement, Atom):
             or AbstractElement.__eq__(self, ~h))
     def __hash__(self) -> int:
         return AbstractElement.__hash__(self)
-    # def __repr__(self) -> str:
-    #     return '%d-Chain' % self.dim
     @abstractmethod
     def __mul__(self, a: int) -> AbstractChain:
         pass
@@ -34,7 +32,9 @@ class AbstractChain(AbstractElement, Atom):
 class ZeroChain(ZeroElement, AbstractChain):
     @classmethod
     def is_zero(cls, map={}, dim=-1):
-        return not len(map) or all(v == 0 for v in map.values())
+        return (not len(map)
+            or all(v == 0 for v in map.values())
+            or all(not len(s) for s in map))
     def __init__(self, dim: int=-1) -> None:
         ZeroElement.__init__(self)
         AbstractChain.__init__(self, (), dim)
@@ -94,11 +94,12 @@ class Chain(Generator[Simplex], GroupElement, AbstractChain):
             if abs(o) > 1:
                 s += '%d*' % abs(o)
             s += str(t)
-        # return '%s[%s]' % (AbstractChain.__repr__(self), s)
         return '%s' % s
     def __lt__(self, other) -> bool:
         return (len(self) < len(other)
             or AbstractElement.__lt__(self, other))
+    def __eq__(self, h) -> bool:
+        return AbstractChain.__eq__(self, h)
     def __hash__(self) -> int:
         return AbstractChain.__hash__(self)
 
@@ -114,7 +115,10 @@ class AbstractChainCoset(AbstractChain):
         AbstractChain.__init__(self, self._rep.id, self._rep.dim)
     def __eq__(self, other):
         try:
-            return other - self._rep in self._subgroup
+            if other == 0:
+                return False
+            diff = other - self._rep
+            return diff == 0 or diff in self._subgroup
         except TypeError as e:
             print(other, self._rep)
             print(self._subgroup)
@@ -126,7 +130,9 @@ class AbstractChainCoset(AbstractChain):
 class ZeroChainCoset(AbstractChainCoset, ZeroChain):
     @classmethod
     def is_zero(cls, chain, subgroup):
-        return chain in subgroup
+        if isinstance(chain, AbstractChainCoset):
+            return ZeroChainCoset.is_zero(chain._rep, subgroup)
+        return chain == 0 or chain in subgroup
     def __init__(self, chain, subgroup):
         AbstractChainCoset.__init__(self, chain, subgroup)
         ZeroChain.__init__(self, chain.dim)
@@ -138,7 +144,7 @@ class ZeroChainCoset(AbstractChainCoset, ZeroChain):
     def __mul__(self, a: int) -> AbstractChain:
         return self
     def __repr__(self) -> str:
-        return '[O]' % AbstractChain.__repr__(self)
+        return '[O]'
     def __iter__(self):
         return iter(self._rep)
 

@@ -34,6 +34,8 @@ def sfilt(f, s): return set(filter(f, s))
 def to_mat(basis):
     elems = list({e for b in basis for e in b})
     imap = {s : i for i, s in enumerate(elems)}
+    if not len(elems):
+        return zeros(1, len(basis))
     vs = []
     for c in basis:
         v = zeros(len(elems),1)

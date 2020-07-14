@@ -54,8 +54,8 @@ class ChainGroup(Group[AbstractChain], Basis[Simplex]):
                 return ChainInclusion(self, other)
             else:
                 return ChainProjection(self, other)
-        # if self == 0:
-        #     return ChainInclusion(self, other)
+        if self == 0:
+            return ChainInclusion(self, other)
         if other == 0:
             return ChainProjection(self, other)
         raise NotImplementedError('%d-%s >> %d-%s.\n (%s >> %s)' \
@@ -159,7 +159,7 @@ class ChainQuotient(ChainGroup):
         return list(sorted(basis))
     def __contains__(self, c):
         return (any(c == l for l in self)
-            or c == self._zero)
+            or c == self._zero or c == 0)
     def __rshift__(self, other):
         if other == 0:
             try:

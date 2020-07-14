@@ -21,6 +21,8 @@ class AbstractElement:
     def __init__(self, id: tuple) -> None:
         self.id = id
     def __eq__(self, other) -> bool:
+        if isinstance(other, int):
+            return False
         return self.id == other.id
     def __hash__(self):
         return hash(self.id)
@@ -80,7 +82,7 @@ class Atom:
 
 class Generator(Mapping[A, int]): # Atom A
     def __init__(self, map: Mapping[A, int]):
-        self._map = {k : v for k,v in map.items() if v != 0}
+        self._map = {k : int(v) for k,v in map.items() if v != 0}
         self._atoms = stuple(self._map)
     def items(self) -> ItemsView[A, int]:
         return self._map.items()
@@ -140,6 +142,8 @@ class Basis(AbstractSet[Generator[A]]):
     def __iter__(self) -> Iterator:
         for b in self._basis:
             yield b
+    def __getitem__(self, i):
+        return self._basis[i]
     def get_atom(self, i):
         return self._elems[i]
     def has_atom(self, a):
