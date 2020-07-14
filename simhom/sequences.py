@@ -19,7 +19,7 @@ class ChainComplex:
         self._seq = seq
         self.idx = idx
         self._maps = {d : self[d] >> self[d-1] for d in self}
-        assert all(self(d)(self(d+1).im) == 0 for d in self)
+        # assert all(self(d)(self(d+1).im) == 0 for d in self)
     def __len__(self):
         return len(self._seq)
     def __getitem__(self, d):

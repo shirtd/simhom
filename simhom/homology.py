@@ -155,22 +155,44 @@ class ChainQuotient(ChainGroup):
         group = self._group if group is None else group
         # return ChainQuotient(basis, self._zero, self._subgroup)
         return ChainQuotient(group, self._subgroup, basis, self._zero)
-    def reduce(self, basis):
-        return list(sorted(basis))
+    # def reduce(self, basis):
+    #     return list(sorted(basis))
     def __contains__(self, c):
         return (any(c == l for l in self)
             or c == self._zero or c == 0)
     def __rshift__(self, other):
-        if other == 0:
-            try:
-                zero_group = ChainGroup([], self._group._zero)
-                return InducedQuotientMap(self, zero_group / self._subgroup)
-            except AttributeError as e:
-                print(self, type(self), self.dim, self._group)
-                raise e
-        elif self.depth == 1 and other.depth == 0:
+        # if other == 0:
+        #     try:
+        #         zero_group = ChainGroup([], self._group._zero)
+        #         return InducedQuotientMap(self, zero_group / self._subgroup)
+        #     except AttributeError as e:
+        #         print(self, type(self), self.dim, self._group)
+        #         raise e
+        if self.depth == 1 and other.depth == 0:
             return ConnectingHomomorphism(self, other)
         return InducedQuotientMap(self, other)
+    def canonical(self, basis):
+        C = list(sorted(basis))
+        for h in range(len(C)):
+            s = max(C[h])
+            C[h] = C[h] * C[h][s]
+            for i in range(len(C)):
+                if i != h and s in C[i]:
+                    C[i] = C[i] - C[h] * (C[i][s] / C[h][s])
+        return C
+    def reduce(self, S):
+        C, h = list(sorted(set(S))), 0
+        for s in self._elems:
+            if h < len(C):
+                x = max(range(h, len(C)), key=lambda i: abs(C[i][s]))
+                if C[x][s] != 0:
+                    C[h], C[x] = C[x], C[h]
+                    for i in range(len(C)):
+                        if i != h:
+                            C[i] = C[i] - C[h] * (C[i][s] / C[h][s])
+                    h += 1
+            else: break
+        return self.canonical([c * c[min(c)] for c in sorted(C) if c != 0])
 
 class ConnectingHomomorphism(Homomorphism[Chain]):
     element_t, group_t = AbstractChain, ChainGroup

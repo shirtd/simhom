@@ -158,7 +158,9 @@ class ChainCoset(AbstractChainCoset, Chain):
         AbstractChainCoset.__init__(self, chain, subgroup)
         Chain.__init__(self, self._rep._map, self._rep.dim)
     def __add__(self, other):
-        return ChainCoset(Chain.__add__(self, other), self._subgroup)
+        if isinstance(other, AbstractChainCoset):
+            other = other._rep
+        return ChainCoset(Chain.__add__(self._rep, other), self._subgroup)
     def __mul__(self, a):
         return ChainCoset(self._rep * a, self._subgroup)
     def __repr__(self):
